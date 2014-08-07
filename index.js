@@ -191,30 +191,39 @@ function adapter(uri, opts){
 
   // Set up exit handlers so we can clean up this process's redis data before exiting
 
-  process.stdin.resume(); //so the program will not close instantly
-  function exitHandler(options, err){
+  function exitHandler(error){
     var i;
     var multi = data.multi();
     var execDone = false;
 
     var roomIds = Object.keys(self.rooms);
     var socketIds = Object.keys(self.sids);
+    
     for(i=0; i<roomIds.length; ++i){
+      debug('Remove from room key "%s" clients: ', prefix + '#' + roomIds[i], Object.keys(self.rooms[roomIds[i]]));
       multi.srem(prefix + '#' + roomIds[i], Object.keys(self.rooms[roomIds[i]]));
     }
     for(i=0; i<socketIds.length; ++i){
+      debug('Remove from client key "%s" rooms: ', prefix + '#' + socketIds[i], Object.keys(self.sids[socketIds[i]]));
       multi.srem(prefix + '#' + socketIds[i], Object.keys(self.sids[socketIds[i]]));
     }
     multi.exec(function(err, replies){
+      debug(replies);
+      error && console.error(error.stack);
       process.exit();
     });
   }
  
-  // //do something when app is closing
-  // process.on('exit', exitHandler.bind(null,{cleanup:true}));
+  //do something when app is closing
+  
+  // SIGTERM and SIGINT have default handlers on non-Windows platforms that resets the terminal mode before exiting with code 128 + signal number. 
+  // If one of these signals has a listener installed, its default behaviour will be removed (node will no longer exit).
   process.on('SIGTERM', exitHandler);
   process.on('SIGINT', exitHandler);
+  //generated on Windows when the console window is closed and on other platforms under various similar conditions
+  process.on('SIGHUP', exitHandler);
   process.on('SIGQUIT', exitHandler);
+  //Custom error handler
   process.on('uncaughtException', exitHandler);
  
 
